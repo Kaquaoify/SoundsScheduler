@@ -74,7 +74,7 @@ fi
 mkdir -p "$APP_DIR"
 # Download archive (no git required) directly into $APP_DIR, preserving existing data
 TMP_DIR=$(mktemp -d)
-ARCHIVE_URL=${1:-"https://github.com/kaquaoify/SoundsScheduler/archive/refs/heads/main.zip"}
+ARCHIVE_URL=${1:-"https://github.com/Kaquaoify/SoundsScheduler/archive/refs/heads/main.zip"}
 echo "Downloading $ARCHIVE_URL ..."
 curl -L "$ARCHIVE_URL" -o "$TMP_DIR/repo.zip"
 unzip -q "$TMP_DIR/repo.zip" -d "$TMP_DIR"
