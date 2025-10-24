@@ -7,8 +7,8 @@ set -euo pipefail
 # Usage: curl -fsSL https://raw.githubusercontent.com/<user>/<repo>/main/install.sh | bash
 # Or: ./install.sh <git_repo_url>
 
-REPO_URL=${1:-"https://github.com/youruser/py-spotify-interrupter.git"}
-APP_DIR="$HOME/.py-spotify-interrupter"
+REPO_URL=${1:-"https://github.com/Kaquaoify/SoundsScheduler.git"}
+APP_DIR="$HOME/.soundsscheduler"
 VENV_DIR="$APP_DIR/venv"
 
 sudo apt-get update
@@ -33,10 +33,10 @@ elif [ -f "$APP_DIR/repo/app/ui/icon.png" ]; then
   cp "$APP_DIR/repo/app/ui/icon.png" "$APP_DIR/icon.png"
 fi
 
-cat > "$HOME/.local/share/applications/spotify-interrupter.desktop" <<EOF
+cat > "$HOME/.local/share/applications/soundsscheduler.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=Spotify Interrupter
+Name=SoundsScheduler
 Exec=$VENV_DIR/bin/python -m app.main
 Icon=$APP_DIR/icon
 Terminal=false

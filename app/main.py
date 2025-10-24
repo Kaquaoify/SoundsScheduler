@@ -17,7 +17,7 @@ from .ui.icons import get_app_icon
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Spotify Interrupter")
+        self.setWindowTitle("SoundsScheduler")
         self.setWindowIcon(get_app_icon())
         self.resize(880, 540)
 

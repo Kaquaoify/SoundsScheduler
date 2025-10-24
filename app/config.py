@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-APP_NAME = "py-spotify-interrupter"
+APP_NAME = "SoundsScheduler"
 
 HOME = Path.home()
 APP_DIR = HOME/ f".{APP_NAME}"
