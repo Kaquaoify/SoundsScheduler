@@ -74,7 +74,7 @@ fi
 mkdir -p "$APP_DIR"
 # Download archive (no git required) directly into $APP_DIR, preserving existing data
 TMP_DIR=$(mktemp -d)
-ARCHIVE_URL=${1:-"https://github.com/kaquaoify/SoundsScheduler/archive/refs/heads/main.zip"}
+ARCHIVE_URL=${1:-"https://github.com/youruser/SoundsScheduler/archive/refs/heads/main.zip"}
 echo "Downloading $ARCHIVE_URL ..."
 curl -L "$ARCHIVE_URL" -o "$TMP_DIR/repo.zip"
 unzip -q "$TMP_DIR/repo.zip" -d "$TMP_DIR"
@@ -119,15 +119,27 @@ fi
 
 # Create desktop launcher that calls our wrapper run.sh
 install -d "$HOME/.local/share/applications"
+# Resolve absolute paths for desktop entry
+APP_DIR_ABS="$APP_DIR"
+RUN_SH="$APP_DIR_ABS/run.sh"
+
+# Create desktop launcher that calls our wrapper run.sh
+install -d "$HOME/.local/share/applications"
 cat > "$HOME/.local/share/applications/soundsscheduler.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=SoundsScheduler
-Exec=$APP_DIR/run.sh
+TryExec=$RUN_SH
+Exec=/bin/bash -lc '$RUN_SH'
+Path=$APP_DIR_ABS
 Icon=$ICON_DESKTOP
 Terminal=false
+StartupNotify=false
 Categories=AudioVideo;Utility;
 EOF
+
+# Refresh desktop database (best effort)
+update-desktop-database "$HOME/.local/share/applications" || true
 
 # (No symlink needed) We run with PYTHONPATH pointing to the repo via $APP_DIR/run.sh
 
