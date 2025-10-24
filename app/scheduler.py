@@ -1,12 +1,9 @@
-# ==============================
-# app/scheduler.py
-# ==============================
 from __future__ import annotations
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import time as dtime
-from typing import Callable, Dict
+from datetime import datetime
+from typing import Callable
 
 class TaskScheduler:
     def __init__(self):
@@ -23,15 +20,19 @@ class TaskScheduler:
         trig = CronTrigger(hour=hour, minute=minute)
         self._job_ids[task_id] = self.sched.add_job(func, trig, id=jid, replace_existing=True)
 
-    def schedule_every_minutes(self, task_id: int, minutes: int, func: Callable):
+    def schedule_every_minutes(self, task_id: int, minutes: int, func: Callable, next_run_time: datetime | None = None):
         jid = f"task_{task_id}"
         trig = IntervalTrigger(minutes=minutes)
-        self._job_ids[task_id] = self.sched.add_job(func, trig, id=jid, replace_existing=True)
+        self._job_ids[task_id] = self.sched.add_job(func, trig, id=jid, replace_existing=True, next_run_time=next_run_time)
 
-    def schedule_every_hours(self, task_id: int, hours: int, func: Callable):
+    def schedule_every_hours(self, task_id: int, hours: int, func: Callable, next_run_time: datetime | None = None):
         jid = f"task_{task_id}"
         trig = IntervalTrigger(hours=hours)
-        self._job_ids[task_id] = self.sched.add_job(func, trig, id=jid, replace_existing=True)
+        self._job_ids[task_id] = self.sched.add_job(func, trig, id=jid, replace_existing=True, next_run_time=next_run_time)
+
+    def schedule_once_at(self, task_id: int, run_date: datetime, func: Callable):
+        jid = f"task_once_{task_id}_{int(run_date.timestamp())}"
+        self.sched.add_job(func, 'date', id=jid, run_date=run_date, replace_existing=False)
 
     def remove(self, task_id: int):
         jid = f"task_{task_id}"
