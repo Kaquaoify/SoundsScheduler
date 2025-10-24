@@ -14,6 +14,24 @@ VENV_DIR="$APP_DIR/venv"
 sudo apt-get update
 sudo apt-get install -y python3 python3-venv python3-pip unzip rsync playerctl vlc libvlc-dev libqt6svg6 dos2unix qt6-wayland libxcb-cursor0
 
+# Install Spotify (prefer Snap; fallback to APT)
+if ! command -v spotify >/dev/null 2>&1; then
+  if command -v snap >/dev/null 2>&1; then
+    echo "Installing Spotify via Snap..."
+    sudo snap install spotify || true
+  fi
+  if ! command -v spotify >/dev/null 2>&1; then
+    echo "Installing Spotify via APT repo..."
+    sudo install -d /etc/apt/keyrings || true
+    curl -fsSL https://download.spotify.com/debian/pubkey_7A3A762FAFD4A51F.gpg | \
+      sudo gpg --dearmor -o /etc/apt/keyrings/spotify.gpg || true
+    echo "deb [signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | \
+      sudo tee /etc/apt/sources.list.d/spotify.list >/dev/null || true
+    sudo apt-get update || true
+    sudo apt-get install -y spotify-client || true
+  fi
+fi
+
 mkdir -p "$APP_DIR"
 # Download archive (no git required) directly into $APP_DIR, preserving existing data
 TMP_DIR=$(mktemp -d)
