@@ -7,7 +7,7 @@ set -euo pipefail
 # Usage: curl -fsSL https://raw.githubusercontent.com/<user>/<repo>/main/install.sh | bash
 # Or: ./install.sh <git_repo_url>
 
-REPO_URL=${1:-"https://github.com/Kaquaoify/SoundsScheduler.git"}
+REPO_URL=${1:-"https://github.com/youruser/SoundsScheduler.git"}
 APP_DIR="$HOME/.soundsscheduler"
 VENV_DIR="$APP_DIR/venv"
 
@@ -33,19 +33,25 @@ elif [ -f "$APP_DIR/repo/app/ui/icon.png" ]; then
   cp "$APP_DIR/repo/app/ui/icon.png" "$APP_DIR/icon.png"
 fi
 
+# Determine icon path with extension for .desktop
+ICON_DESKTOP="applications-multimedia"
+if [ -f "$APP_DIR/icon.svg" ]; then
+  ICON_DESKTOP="$APP_DIR/icon.svg"
+elif [ -f "$APP_DIR/icon.png" ]; then
+  ICON_DESKTOP="$APP_DIR/icon.png"
+fi
+
+# Create desktop launcher that calls our wrapper run.sh
 cat > "$HOME/.local/share/applications/soundsscheduler.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=SoundsScheduler
-Exec=$VENV_DIR/bin/python -m app.main
-Icon=$APP_DIR/icon
+Exec=$APP_DIR/run.sh
+Icon=$ICON_DESKTOP
 Terminal=false
 Categories=AudioVideo;Utility;
 EOF
 
-# Symlink app into venv site-packages path to allow -m app.main
-if [ ! -e "$VENV_DIR/app" ]; then
-  ln -s "$APP_DIR/repo/app" "$VENV_DIR/app"
-fi
+# (No symlink needed) We run with PYTHONPATH pointing to the repo via $APP_DIR/run.sh
 
 echo "Installed. Launch via Applications menu or: $VENV_DIR/bin/python -m app.main"
