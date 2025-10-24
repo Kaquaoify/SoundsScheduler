@@ -7,23 +7,28 @@ set -euo pipefail
 # Usage: curl -fsSL https://raw.githubusercontent.com/<user>/<repo>/main/install.sh | bash
 # Or: ./install.sh <git_repo_url>
 
-REPO_URL=${1:-"https://github.com/youruser/SoundsScheduler.git"}
+REPO_URL=${1:-"https://github.com/kaquaoify/SoundsScheduler.git"}
 APP_DIR="$HOME/.soundsscheduler"
 VENV_DIR="$APP_DIR/venv"
 
 sudo apt-get update
-sudo apt-get install -y python3 python3-venv python3-pip git playerctl vlc libvlc-dev libqt6svg6
+sudo apt-get install -y python3 python3-venv python3-pip unzip rsync playerctl vlc libvlc-dev libqt6svg6
 
 mkdir -p "$APP_DIR"
-# Pull or clone repo directly into $APP_DIR (no subfolder), preserving existing data
-if [ -d "$APP_DIR/.git" ]; then
-  git -C "$APP_DIR" pull --ff-only
-else
-  TMP_DIR=$(mktemp -d)
-  git clone "$REPO_URL" "$TMP_DIR/repo"
-  rsync -a --exclude='.git' "$TMP_DIR/repo/" "$APP_DIR/"
-  rm -rf "$TMP_DIR"
+# Download archive (no git required) directly into $APP_DIR, preserving existing data
+TMP_DIR=$(mktemp -d)
+ARCHIVE_URL=${1:-"https://github.com/kaquaoify/SoundsScheduler/archive/refs/heads/main.zip"}
+echo "Downloading $ARCHIVE_URL ..."
+curl -L "$ARCHIVE_URL" -o "$TMP_DIR/repo.zip"
+unzip -q "$TMP_DIR/repo.zip" -d "$TMP_DIR"
+# Find extracted dir (e.g., SoundsScheduler-main)
+SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name "SoundsScheduler-*" | head -n 1)
+if [ -z "$SRC_DIR" ]; then
+  echo "ERROR: Could not find extracted source directory." >&2
+  exit 1
 fi
+rsync -a --delete --exclude='.git' "$SRC_DIR/" "$APP_DIR/"
+rm -rf "$TMP_DIR"
 
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --upgrade pip
@@ -57,4 +62,4 @@ EOF
 
 # (No symlink needed) We run with PYTHONPATH pointing to the repo via $APP_DIR/run.sh
 
-echo "Installed. Launch via Applications menu or: $VENV_DIR/bin/python -m app.main"
+echo "Installed. Launch via Applications menu or: $APP_DIR/run.sh"
