@@ -34,7 +34,6 @@ if ! command -v spotify >/dev/null 2>&1; then
         else
           echo "Official key fetch failed, trying keyserver for NO_PUBKEY issues..."
           sudo rm -f /etc/apt/keyrings/spotify.gpg || true
-          # Try to import by key id commonly reported by apt (handles rotations)
           for KEY in C85668DF69375001 7A3A762FAFD4A51F; do
             if sudo gpg --keyserver keyserver.ubuntu.com --recv-keys "$KEY"; then
               sudo gpg --export "$KEY" | sudo gpg --dearmor -o /etc/apt/keyrings/spotify.gpg && break
@@ -49,15 +48,17 @@ if ! command -v spotify >/dev/null 2>&1; then
       else
         echo "APT update failed for Spotify repo. Cleaning up to avoid future warnings..."
         sudo rm -f /etc/apt/sources.list.d/spotify.list || true
+        sudo rm -f /etc/apt/keyrings/spotify.gpg || true
         sudo apt-get update || true
       fi
     else
       echo "Non-amd64 architecture ($ARCH) detected — skipping APT repo and relying on snap."
-      # Clean any previous spotify apt source to avoid warnings
       sudo rm -f /etc/apt/sources.list.d/spotify.list || true
+      sudo rm -f /etc/apt/keyrings/spotify.gpg || true
     fi
   fi
 fi
+
 mkdir -p "$APP_DIR"
 # Download archive (no git required) directly into $APP_DIR, preserving existing data
 TMP_DIR=$(mktemp -d)
