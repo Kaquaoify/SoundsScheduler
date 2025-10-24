@@ -7,17 +7,17 @@ set -euo pipefail
 # Usage: curl -fsSL https://raw.githubusercontent.com/<user>/<repo>/main/install.sh | bash
 # Or: ./install.sh <git_repo_url>
 
-REPO_URL=${1:-"https://github.com/kaquaoify/SoundsScheduler.git"}
+REPO_URL=${1:-"https://github.com/youruser/SoundsScheduler.git"}
 APP_DIR="$HOME/.soundsscheduler"
 VENV_DIR="$APP_DIR/venv"
 
 sudo apt-get update
-sudo apt-get install -y python3 python3-venv python3-pip unzip rsync playerctl vlc libvlc-dev libqt6svg6 dos2unix
+sudo apt-get install -y python3 python3-venv python3-pip unzip rsync playerctl vlc libvlc-dev libqt6svg6 dos2unix qt6-wayland libxcb-cursor0
 
 mkdir -p "$APP_DIR"
 # Download archive (no git required) directly into $APP_DIR, preserving existing data
 TMP_DIR=$(mktemp -d)
-ARCHIVE_URL=${1:-"https://github.com/kaquaoify/SoundsScheduler/archive/refs/heads/main.zip"}
+ARCHIVE_URL=${1:-"https://github.com/youruser/SoundsScheduler/archive/refs/heads/main.zip"}
 echo "Downloading $ARCHIVE_URL ..."
 curl -L "$ARCHIVE_URL" -o "$TMP_DIR/repo.zip"
 unzip -q "$TMP_DIR/repo.zip" -d "$TMP_DIR"
