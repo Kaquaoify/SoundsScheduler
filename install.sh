@@ -14,24 +14,50 @@ VENV_DIR="$APP_DIR/venv"
 sudo apt-get update
 sudo apt-get install -y python3 python3-venv python3-pip unzip rsync playerctl vlc libvlc-dev libqt6svg6 dos2unix qt6-wayland libxcb-cursor0
 
-# Install Spotify (prefer Snap; fallback to APT)
+# --- Install Spotify (prefer Snap; fallback to APT repo on amd64 only) ---
+ARCH=$(dpkg --print-architecture || echo unknown)
 if ! command -v spotify >/dev/null 2>&1; then
+  # Prefer snap (works on amd64/arm64)
   if command -v snap >/dev/null 2>&1; then
-    echo "Installing Spotify via Snap..."
+    echo "Installing Spotify via snap..."
     sudo snap install spotify || true
   fi
+
   if ! command -v spotify >/dev/null 2>&1; then
-    echo "Installing Spotify via APT repo..."
-    sudo install -d /etc/apt/keyrings || true
-    curl -fsSL https://download.spotify.com/debian/pubkey_7A3A762FAFD4A51F.gpg | \
-      sudo gpg --dearmor -o /etc/apt/keyrings/spotify.gpg || true
-    echo "deb [signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | \
-      sudo tee /etc/apt/sources.list.d/spotify.list >/dev/null || true
-    sudo apt-get update || true
-    sudo apt-get install -y spotify-client || true
+    if [ "$ARCH" = "amd64" ]; then
+      echo "Installing Spotify via APT repository (amd64 only)..."
+      sudo install -d /etc/apt/keyrings || true
+      # Try official key first
+      if ! sudo test -f /etc/apt/keyrings/spotify.gpg; then
+        if curl -fsSL https://download.spotify.com/debian/pubkey_7A3A762FAFD4A51F.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/spotify.gpg; then
+          echo "Imported Spotify key (official URL)."
+        else
+          echo "Official key fetch failed, trying keyserver for NO_PUBKEY issues..."
+          sudo rm -f /etc/apt/keyrings/spotify.gpg || true
+          # Try to import by key id commonly reported by apt (handles rotations)
+          for KEY in C85668DF69375001 7A3A762FAFD4A51F; do
+            if sudo gpg --keyserver keyserver.ubuntu.com --recv-keys "$KEY"; then
+              sudo gpg --export "$KEY" | sudo gpg --dearmor -o /etc/apt/keyrings/spotify.gpg && break
+            fi
+          done
+        fi
+      fi
+      echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | \
+        sudo tee /etc/apt/sources.list.d/spotify.list >/dev/null || true
+      if sudo apt-get update; then
+        sudo apt-get install -y spotify-client || true
+      else
+        echo "APT update failed for Spotify repo. Cleaning up to avoid future warnings..."
+        sudo rm -f /etc/apt/sources.list.d/spotify.list || true
+        sudo apt-get update || true
+      fi
+    else
+      echo "Non-amd64 architecture ($ARCH) detected — skipping APT repo and relying on snap."
+      # Clean any previous spotify apt source to avoid warnings
+      sudo rm -f /etc/apt/sources.list.d/spotify.list || true
+    fi
   fi
 fi
-
 mkdir -p "$APP_DIR"
 # Download archive (no git required) directly into $APP_DIR, preserving existing data
 TMP_DIR=$(mktemp -d)
