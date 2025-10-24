@@ -1,0 +1,10 @@
+# ==============================
+# requirements.txt
+# ==============================
+# Pin modestly for stability on Ubuntu 25
+PySide6>=6.6,<7
+python-vlc>=3.0.0
+APScheduler>=3.10,<4
+
+# (Optional) If later adding Spotify Web API fallback
+# spotipy>=2.23
