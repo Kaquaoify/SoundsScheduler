@@ -46,9 +46,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.volume_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal); self.volume_slider.setRange(0,100)
         s_layout.addRow("Volume de sortie", self.volume_slider)
 
-        self.spotify_mode_combo = QtWidgets.QComboBox(); self.spotify_mode_combo.addItems(["linux_mpris", "web_api"])
-        s_layout.addRow("Contrôle Spotify", self.spotify_mode_combo)
-
+        
         btn_save = QtWidgets.QPushButton("Enregistrer les réglages")
         btn_save.clicked.connect(self._save_settings)
         s_layout.addRow("", btn_save)
@@ -105,7 +103,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _save_settings(self):
         self.settings.sound_dir = self.sound_dir_edit.text().strip() or self.settings.sound_dir
         self.settings.output_volume = self.volume_slider.value()
-        self.settings.spotify_control_mode = self.spotify_mode_combo.currentText()
+        self.settings.spotify_control_mode = "linux_mpris"
         self.storage.save_settings(self.settings)
         self.player.set_volume(self.settings.output_volume)
         self.spotify = SpotifyController(mode=self.settings.spotify_control_mode)
@@ -114,7 +112,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def _load_settings_to_ui(self):
         self.sound_dir_edit.setText(self.settings.sound_dir)
         self.volume_slider.setValue(self.settings.output_volume)
-        self.spotify_mode_combo.setCurrentText(self.settings.spotify_control_mode)
         self.player.set_volume(self.settings.output_volume)
 
     # --- Task CRUD + Scheduling

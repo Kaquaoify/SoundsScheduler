@@ -15,7 +15,7 @@ class TaskType(Enum):
 class Settings:
     sound_dir: str
     output_volume: int  # 0..100
-    spotify_control_mode: str  # "linux_mpris" | "web_api"
+    spotify_control_mode: str  # always "linux_mpris" (web_api removed)
 
 @dataclass
 class Task:
