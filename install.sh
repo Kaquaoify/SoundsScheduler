@@ -15,22 +15,25 @@ sudo apt-get update
 sudo apt-get install -y python3 python3-venv python3-pip git playerctl vlc libvlc-dev libqt6svg6
 
 mkdir -p "$APP_DIR"
-if [ ! -d "$APP_DIR/repo/.git" ]; then
-  rm -rf "$APP_DIR/repo" || true
-  git clone "$REPO_URL" "$APP_DIR/repo"
+# Pull or clone repo directly into $APP_DIR (no subfolder), preserving existing data
+if [ -d "$APP_DIR/.git" ]; then
+  git -C "$APP_DIR" pull --ff-only
 else
-  git -C "$APP_DIR/repo" pull --ff-only
+  TMP_DIR=$(mktemp -d)
+  git clone "$REPO_URL" "$TMP_DIR/repo"
+  rsync -a --exclude='.git' "$TMP_DIR/repo/" "$APP_DIR/"
+  rm -rf "$TMP_DIR"
 fi
 
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install -r "$APP_DIR/repo/requirements.txt"
+"$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
 
 # If a custom icon is present in repo, copy it to app data dir (prefer SVG, fallback PNG)
-if [ -f "$APP_DIR/repo/app/ui/icon.svg" ]; then
-  cp "$APP_DIR/repo/app/ui/icon.svg" "$APP_DIR/icon.svg"
-elif [ -f "$APP_DIR/repo/app/ui/icon.png" ]; then
-  cp "$APP_DIR/repo/app/ui/icon.png" "$APP_DIR/icon.png"
+if [ -f "$APP_DIR/app/ui/icon.svg" ]; then
+  cp "$APP_DIR/app/ui/icon.svg" "$APP_DIR/icon.svg"
+elif [ -f "$APP_DIR/app/ui/icon.png" ]; then
+  cp "$APP_DIR/app/ui/icon.png" "$APP_DIR/icon.png"
 fi
 
 # Determine icon path with extension for .desktop
