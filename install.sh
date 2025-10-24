@@ -12,7 +12,7 @@ APP_DIR="$HOME/.soundsscheduler"
 VENV_DIR="$APP_DIR/venv"
 
 sudo apt-get update
-sudo apt-get install -y python3 python3-venv python3-pip unzip rsync playerctl vlc libvlc-dev libqt6svg6
+sudo apt-get install -y python3 python3-venv python3-pip unzip rsync playerctl vlc libvlc-dev libqt6svg6 dos2unix
 
 mkdir -p "$APP_DIR"
 # Download archive (no git required) directly into $APP_DIR, preserving existing data
@@ -29,6 +29,19 @@ if [ -z "$SRC_DIR" ]; then
 fi
 rsync -a --delete --exclude='.git' "$SRC_DIR/" "$APP_DIR/"
 rm -rf "$TMP_DIR"
+
+# Normalize line endings and ensure executable permissions
+if command -v dos2unix >/dev/null 2>&1; then
+  dos2unix "$APP_DIR/run.sh" || true
+  find "$APP_DIR" -type f -name "*.sh" -exec dos2unix {} \; || true
+else
+  sed -i 's/
+$//' "$APP_DIR/run.sh" || true
+  find "$APP_DIR" -type f -name "*.sh" -exec sed -i 's/
+$//' {} \; || true
+fi
+chmod 755 "$APP_DIR/run.sh"
+find "$APP_DIR" -type f -name "*.sh" -exec chmod 755 {} \; || true
 
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --upgrade pip
@@ -50,6 +63,7 @@ elif [ -f "$APP_DIR/icon.png" ]; then
 fi
 
 # Create desktop launcher that calls our wrapper run.sh
+install -d "$HOME/.local/share/applications"
 cat > "$HOME/.local/share/applications/soundsscheduler.desktop" <<EOF
 [Desktop Entry]
 Type=Application
