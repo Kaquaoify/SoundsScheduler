@@ -227,13 +227,13 @@ class MainWindow(QtWidgets.QMainWindow):
             was_playing = self.spotify.is_playing()
             try:
                 if was_playing:
-                    self.spotify.pause()
+                    self.spotify.fade_out_and_pause(800)
                 self.player.set_volume(self.settings.output_volume)
                 self.player.play_blocking(t.sound_path)
             finally:
                 log.info("Fin tâche #%s", t.id)
                 if was_playing:
-                    self.spotify.play()
+                    self.spotify.play_and_fade_in(800)
 
             # occurrences
             if t.max_occurrences and t.max_occurrences > 0 and t.task_type == TaskType.AFTER_DURATION:
@@ -270,12 +270,12 @@ class MainWindow(QtWidgets.QMainWindow):
             was_playing = self.spotify.is_playing()
             try:
                 if was_playing:
-                    self.spotify.pause()
+                    self.spotify.fade_out_and_pause(800)
                 self.player.set_volume(self.settings.output_volume)
                 self.player.play_blocking(path)
             finally:
                 if was_playing:
-                    self.spotify.play()
+                    self.spotify.play_and_fade_in(800)
         threading.Thread(target=run, daemon=True).start()
 
     # --- start/stop interval tasks (manual)
