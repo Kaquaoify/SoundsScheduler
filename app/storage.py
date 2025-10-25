@@ -1,6 +1,3 @@
-# ==============================
-# app/storage.py
-# ==============================
 from __future__ import annotations
 import sqlite3
 from pathlib import Path
@@ -44,9 +41,10 @@ class Storage:
 
     def _init_db(self):
         with self.conn:
-            self.conn.executescripts(SCHEMA)  # typo fixed? ensure execscripts -> executescript
+            # Appliquer le schéma
             self.conn.executescript(SCHEMA)
-            # migrations si ancienne base
+
+            # Migrations si ancienne base
             cols = {r[1] for r in self.conn.execute("PRAGMA table_info(tasks)")}
             if "max_occurrences" not in cols:
                 self.conn.execute("ALTER TABLE tasks ADD COLUMN max_occurrences INTEGER")
@@ -61,24 +59,31 @@ class Storage:
             if "run_count" not in cols:
                 self.conn.execute("ALTER TABLE tasks ADD COLUMN run_count INTEGER DEFAULT 0")
 
-            # --- Migration de compatibilité: anciens types -> nouveaux (user_version < 2)
+            # Migration de compat: anciens types -> nouveaux (user_version < 2)
             (uv,) = self.conn.execute("PRAGMA user_version").fetchone()
             if (uv or 0) < 2:
-                # 1) every_x_minutes => after_duration (minutes -> secondes)
-                self.conn.execute("UPDATE tasks SET param_value = param_value * 60, task_type = 'after_duration' WHERE task_type = 'every_x_minutes'")
-                # 2) every_x_hours   => after_duration (heures -> secondes)
-                self.conn.execute("UPDATE tasks SET param_value = param_value * 3600, task_type = 'after_duration' WHERE task_type = 'every_x_hours'")
-                # 3) after_task (legacy en minutes) => secondes
-                self.conn.execute("UPDATE tasks SET param_value = param_value * 60 WHERE task_type = 'after_task'")
+                # every_x_minutes -> after_duration (minutes -> secondes)
+                self.conn.execute(
+                    "UPDATE tasks SET param_value = param_value * 60, task_type = 'after_duration' "
+                    "WHERE task_type = 'every_x_minutes'"
+                )
+                # every_x_hours -> after_duration (heures -> secondes)
+                self.conn.execute(
+                    "UPDATE tasks SET param_value = param_value * 3600, task_type = 'after_duration' "
+                    "WHERE task_type = 'every_x_hours'"
+                )
+                # after_task (legacy minutes) -> secondes
+                self.conn.execute(
+                    "UPDATE tasks SET param_value = param_value * 60 WHERE task_type = 'after_task'"
+                )
                 self.conn.execute("PRAGMA user_version = 2")
 
+            # Seed settings si absent
             cur = self.conn.execute("SELECT 1 FROM settings WHERE id=1")
             if not cur.fetchone():
                 self.conn.execute(
                     "INSERT INTO settings (id, sound_dir, output_volume, spotify_control_mode) VALUES (1, ?, ?, ?)",
-                    (str(Path.home()/"Music"), 80, "linux_mpris"),
-                ) VALUES (1, ?, ?, ?)",
-                    (str(Path.home()/"Music"), 80, "linux_mpris"),
+                    (str(Path.home() / "Music"), 80, "linux_mpris"),
                 )
 
     # -- settings
@@ -103,6 +108,7 @@ class Storage:
         out: List[Task] = []
         for r in rows:
             raw_type = r["task_type"]
+            # tolérance si des anciens types traînent
             if raw_type in ("every_x_minutes", "every_x_hours"):
                 raw_type = "after_duration"
             out.append(Task(
