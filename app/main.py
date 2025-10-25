@@ -26,7 +26,7 @@ logging.basicConfig(
 log = logging.getLogger("SoundsScheduler")
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):(self):
+    def __init__(self):
         super().__init__()
         self.setWindowTitle("SoundsScheduler")
         self.setWindowIcon(get_app_icon())
