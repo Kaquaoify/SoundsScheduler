@@ -141,35 +141,3 @@ class Storage:
     def set_enabled(self, task_id: int, enabled: bool):
         with self.conn:
             self.conn.execute("UPDATE tasks SET enabled=? WHERE id=?", (1 if enabled else 0, task_id))
-
-# ==============================.execute("UPDATE tasks SET run_count = COALESCE(run_count,0) + 1 WHERE id=?", (task_id,))
-            (val,) = self.conn.execute("SELECT run_count FROM tasks WHERE id=?", (task_id,)).fetchone()
-            return val
-
-    def set_enabled(self, task_id: int, enabled: bool):
-        with self.conn:
-            self.conn.execute("UPDATE tasks SET enabled=? WHERE id=?", (1 if enabled else 0, task_id))
-
-# ==============================.execute("UPDATE tasks SET run_count = COALESCE(run_count,0) + 1 WHERE id=?", (task_id,))
-            (val,) = self.conn.execute("SELECT run_count FROM tasks WHERE id=?", (task_id,)).fetchone()
-            return val
-
-    def set_enabled(self, task_id: int, enabled: bool):
-        with self.conn:
-            self.conn.execute("UPDATE tasks SET enabled=? WHERE id=?", (1 if enabled else 0, task_id))
-
-# ==============================.execute("UPDATE tasks SET run_count = COALESCE(run_count,0) + 1 WHERE id=?", (task_id,))
-            (val,) = self.conn.execute("SELECT run_count FROM tasks WHERE id=?", (task_id,)).fetchone()
-            return val
-
-    def set_enabled(self, task_id: int, enabled: bool):
-        with self.conn:
-            self.conn.execute("UPDATE tasks SET enabled=? WHERE id=?", (1 if enabled else 0, task_id))
-
-# ==============================            "UPDATE tasks SET name=?, sound_path=?, task_type=?, param_value=?, at_hour=?, at_minute=?, enabled=? WHERE id=?",
-                (t.name, t.sound_path, t.task_type.value, t.param_value, t.at_hour, t.at_minute, int(t.enabled), t.id),
-            )
-
-    def delete_task(self, task_id: int):
-        with self.conn:
-            self.conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))

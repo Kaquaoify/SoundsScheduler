@@ -174,33 +174,3 @@ class AddTaskDialog(QtWidgets.QDialog):
             start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
             after_task_id=after_id,
         )
-
-# ==============================in.value() or None),
-            start_now=self.start_now_check.isChecked(),
-            start_at_hour=self.start_at_hour.value() if not self.start_now_check.isChecked() else None,
-            start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
-            after_task_id=after_id,
-        )
-
-# ==============================in.value() or None),
-            start_now=self.start_now_check.isChecked(),
-            start_at_hour=self.start_at_hour.value() if not self.start_now_check.isChecked() else None,
-            start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
-            after_task_id=after_id,
-        )
-
-# ==============================in.value() or None),
-            start_now=self.start_now_check.isChecked(),
-            start_at_hour=self.start_at_hour.value() if not self.start_now_check.isChecked() else None,
-            start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
-            after_task_id=after_id,
-        )
-
-# ============================== name=self.name_edit.text().strip() or "Tâche",
-            sound_path=self.sound_combo.currentText(),
-            task_type=ttype,
-            param_value=self.value_spin.value(),
-            at_hour=self.hour_spin.value(),
-            at_minute=self.min_spin.value(),
-            enabled=self.enabled_check.isChecked(),
-        )
