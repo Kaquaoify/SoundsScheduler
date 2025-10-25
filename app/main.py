@@ -119,8 +119,30 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _refresh_manual_sounds(self):
         p = Path(self.sound_dir_edit.text() or str(Path.home()/"Music"))
-        files = [str(fp) for fp in p.glob("**/*") if fp.suffix.lower() in {".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"}]
-        self.manual_sound_combo.clear(); self.manual_sound_combo.addItems(files)
+        from_dir = [str(fp) for fp in p.glob("**/*") if fp.suffix.lower() in {".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"}]
+        # inclure aussi tous les sons référencés par les tâches existantes
+        try:
+            task_paths = [t.sound_path for t in self.storage.list_tasks() if t.sound_path]
+        except Exception:
+            task_paths = []
+        # merge + dédoublonnage en préservant l'ordre (tâches d'abord)
+        seen = set()
+        merged = []
+        for path in (task_paths + from_dir):
+            if not path:
+                continue
+            if path in seen:
+                continue
+            seen.add(path)
+            merged.append(path)
+        # garder uniquement les fichiers qui existent
+        merged = [s for s in merged if Path(s).exists()]
+        # préserver la sélection si possible
+        current = self.manual_sound_combo.currentText() if self.manual_sound_combo.count() else None
+        self.manual_sound_combo.clear()
+        self.manual_sound_combo.addItems(merged)
+        if current and current in merged:
+            self.manual_sound_combo.setCurrentText(current)
 
     def _save_settings(self):
         self.settings.sound_dir = self.sound_dir_edit.text().strip() or self.settings.sound_dir
@@ -143,8 +165,14 @@ class MainWindow(QtWidgets.QMainWindow):
         if dlg.exec() == QtWidgets.QDialog.Accepted:
             t = dlg.get_task()
             t.name = t.name or Path(t.sound_path).stem
-            self.storage.add_task(t)
+            new_id = self.storage.add_task(t)
             self._reload_tasks()
+            # refresh manual list & select the newly added sound
+            self._refresh_manual_sounds()
+            if t.sound_path:
+                idx = self.manual_sound_combo.findText(t.sound_path)
+                if idx >= 0:
+                    self.manual_sound_combo.setCurrentIndex(idx)
 
     def _edit_selected(self):
         row = self.table.currentRow()
@@ -159,6 +187,12 @@ class MainWindow(QtWidgets.QMainWindow):
             new_t = dlg.get_task(); new_t.id = t.id
             self.storage.update_task(new_t)
             self._reload_tasks()
+            # refresh manual list & keep/point to edited task sound
+            self._refresh_manual_sounds()
+            if new_t.sound_path:
+                idx = self.manual_sound_combo.findText(new_t.sound_path)
+                if idx >= 0:
+                    self.manual_sound_combo.setCurrentIndex(idx)
 
     def _delete_selected(self):
         row = self.table.currentRow()
