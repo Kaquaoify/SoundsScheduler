@@ -26,7 +26,7 @@ logging.basicConfig(
 log = logging.getLogger("SoundsScheduler")
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self):(self):
         super().__init__()
         self.setWindowTitle("SoundsScheduler")
         self.setWindowIcon(get_app_icon())
@@ -37,6 +37,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.player = AudioPlayer()
         self.settings = self.storage.load_settings()
         self.spotify = SpotifyController(mode=self.settings.spotify_control_mode)
+
+        # state: manual start for AFTER_DURATION
+        self.interval_running = False
 
         self._init_ui()
         self._load_settings_to_ui()
@@ -78,6 +81,17 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_manual_play.clicked.connect(self._play_manual_sound)
         manual_layout.addWidget(self.manual_sound_combo); manual_layout.addWidget(btn_manual_play)
         s_layout.addRow("Test / Manuel", self._wrap(manual_layout))
+
+        # Global start/stop for AFTER_DURATION tasks
+        startstop = QtWidgets.QHBoxLayout()
+        self.btn_start_tasks = QtWidgets.QPushButton("Démarrer les tâches")
+        self.btn_stop_tasks = QtWidgets.QPushButton("Arrêter les tâches")
+        self.btn_stop_tasks.setEnabled(False)
+        self.btn_start_tasks.clicked.connect(self._start_interval_tasks)
+        self.btn_stop_tasks.clicked.connect(self._stop_interval_tasks)
+        startstop.addWidget(self.btn_start_tasks)
+        startstop.addWidget(self.btn_stop_tasks)
+        s_layout.addRow("Planification (après X temps)", self._wrap(startstop))
 
         # Tasks tab
         tasks_tab = QtWidgets.QWidget(); tabs.addTab(tasks_tab, "Tâches")
@@ -176,7 +190,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 continue
             if t.task_type == TaskType.AFTER_TASK:
                 continue  # sera déclenchée par sa source
+            if t.task_type == TaskType.AFTER_DURATION and not self.interval_running:
+                log.info("(attente) AFTER_DURATION #%s — démarrage manuel requis", t.id)
+                continue
             self._schedule_task(t)
+        log.info("Planification terminée (%d tâches actives)", sum(1 for t in tasks if t.enabled))
         log.info("Planification terminée (%d tâches actives)", sum(1 for t in tasks if t.enabled))
 
     def _append_task_row(self, t: Task):
@@ -194,8 +212,12 @@ class MainWindow(QtWidgets.QMainWindow):
         setc(5, f"{t.at_hour:02d}:{t.at_minute:02d}" if t.at_hour is not None else "-")
         setc(6, "✔" if t.enabled else "✖")
         setc(7, str(t.max_occurrences or 0))
-        start_txt = "now" if t.start_now else (f"{t.start_at_hour:02d}:{t.start_at_minute:02d}" if t.start_at_hour is not None else "-")
+        if t.task_type == TaskType.AFTER_DURATION:
+            start_txt = "manuel"
+        else:
+            start_txt = "now" if t.start_now else (f"{t.start_at_hour:02d}:{t.start_at_minute:02d}" if t.start_at_hour is not None else "-")
         setc(8, start_txt)
+        setc(9, f"#{t.after_task_id}" if t.after_task_id else "-")
         setc(9, f"#{t.after_task_id}" if t.after_task_id else "-")
 
     # --- job builder & scheduling
@@ -234,16 +256,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.scheduler.schedule_daily_fixed(t.id, t.at_hour or 0, t.at_minute or 0, job)
             return
         if t.task_type == TaskType.AFTER_DURATION:
-            # Première occurrence immédiate si start_now=True
-            next_run = datetime.now() if (t.start_now or t.start_now is None) else None
-            if not t.start_now and t.start_at_hour is not None and t.start_at_minute is not None:
-                candidate = datetime.now().replace(hour=t.start_at_hour, minute=t.start_at_minute, second=0, microsecond=0)
-                if candidate < datetime.now():
-                    step = max(1, int(t.param_value))
-                    delta = int((datetime.now() - candidate).total_seconds())
-                    steps = (delta // step) + 1
-                    candidate = candidate + timedelta(seconds=steps * step)
-                next_run = candidate
+            # Démarrage manuel : première exécution après la durée depuis le clic « Démarrer »
+            next_run = datetime.now() + timedelta(seconds=max(1, int(t.param_value)))
             log.info("Planifie AFTER_DURATION #%s toutes %ss (prochaine: %s)", t.id, int(t.param_value), next_run)
             self.scheduler.schedule_every_seconds(t.id, max(1, int(t.param_value)), job, next_run_time=next_run)
 
@@ -263,6 +277,31 @@ class MainWindow(QtWidgets.QMainWindow):
                 if was_playing:
                     self.spotify.play()
         threading.Thread(target=run, daemon=True).start()
+
+    # --- start/stop interval tasks (manual)
+    def _start_interval_tasks(self):
+        if self.interval_running:
+            return
+        self.interval_running = True
+        self.btn_start_tasks.setEnabled(False)
+        self.btn_stop_tasks.setEnabled(True)
+        log.info("[MANUAL] Démarrage des tâches AFTER_DURATION…")
+        # replanifie uniquement les AFTER_DURATION manquantes
+        tasks = [t for t in self.storage.list_tasks() if t.enabled and t.task_type == TaskType.AFTER_DURATION]
+        for t in tasks:
+            self._schedule_task(t)
+
+    def _stop_interval_tasks(self):
+        if not self.interval_running:
+            return
+        self.interval_running = False
+        self.btn_start_tasks.setEnabled(True)
+        self.btn_stop_tasks.setEnabled(False)
+        log.info("[MANUAL] Arrêt des tâches AFTER_DURATION — déplanifie…")
+        # supprime les jobs d'intervalle mais laisse les FIXED_TIME
+        tasks = [t for t in self.storage.list_tasks() if t.task_type == TaskType.AFTER_DURATION]
+        for t in tasks:
+            self.scheduler.remove(t.id)
 
 
 def main():

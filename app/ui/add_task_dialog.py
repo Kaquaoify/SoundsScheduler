@@ -28,7 +28,7 @@ class AddTaskDialog(QtWidgets.QDialog):
 
         # Options intervalle
         self.max_occ_spin = QtWidgets.QSpinBox(); self.max_occ_spin.setRange(0, 100000); self.max_occ_spin.setValue(0)
-        self.start_now_check = QtWidgets.QCheckBox("Démarrer maintenant"); self.start_now_check.setChecked(True)
+        self.start_now_check = QtWidgets.QCheckBox("Démarrer maintenant (désactivé pour 'après X temps')"); self.start_now_check.setChecked(False)
         self.start_at_hour = QtWidgets.QSpinBox(); self.start_at_hour.setRange(0,23)
         self.start_at_min  = QtWidgets.QSpinBox(); self.start_at_min.setRange(0,59)
 
@@ -105,9 +105,10 @@ class AddTaskDialog(QtWidgets.QDialog):
             w.setEnabled(is_duration or is_after)
 
         self.max_occ_spin.setEnabled(is_duration)
-        self.start_now_check.setEnabled(is_duration)
-        self.start_at_hour.setEnabled(is_duration and not self.start_now_check.isChecked())
-        self.start_at_min.setEnabled(is_duration and not self.start_now_check.isChecked())
+        # Pour 'après X temps' : démarrage manuel uniquement -> désactive les contrôles de départ
+        self.start_now_check.setEnabled(False if is_duration else True)
+        self.start_at_hour.setEnabled(False if is_duration else (not self.start_now_check.isChecked()))
+        self.start_at_min.setEnabled(False if is_duration else (not self.start_now_check.isChecked()))
         self.after_task_combo.setEnabled(is_after)
 
     def _load_task(self, t: Task):
@@ -169,8 +170,8 @@ class AddTaskDialog(QtWidgets.QDialog):
             at_minute=self.min_spin.value(),
             enabled=self.enabled_check.isChecked(),
             max_occurrences=(self.max_occ_spin.value() or None),
-            start_now=self.start_now_check.isChecked(),
-            start_at_hour=self.start_at_hour.value() if not self.start_now_check.isChecked() else None,
-            start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
+            start_now=(False if ttype == TaskType.AFTER_DURATION else self.start_now_check.isChecked()),
+            start_at_hour=(None if ttype == TaskType.AFTER_DURATION else (self.start_at_hour.value() if not self.start_now_check.isChecked() else None)),
+            start_at_minute=(None if ttype == TaskType.AFTER_DURATION else (self.start_at_min.value() if not self.start_now_check.isChecked() else None)),
             after_task_id=after_id,
         )
