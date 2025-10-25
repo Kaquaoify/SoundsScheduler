@@ -17,6 +17,14 @@ from .audio_player import AudioPlayer
 from .ui.add_task_dialog import AddTaskDialog
 from .ui.icons import get_app_icon
 
+# --- theming helpers
+def _safe_import_qdarktheme():
+    try:
+        import qdarktheme  # type: ignore
+        return qdarktheme
+    except Exception:
+        return None
+
 # simple file logger
 logging.basicConfig(
     filename=str(LOG_PATH),
@@ -43,6 +51,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._init_ui()
         self._load_settings_to_ui()
+        self._apply_theme(self.settings.theme)
         log.info("App démarrée. Chargement des tâches…")
         self._reload_tasks()
 
@@ -64,6 +73,12 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_save = QtWidgets.QPushButton("Enregistrer les réglages")
         btn_save.clicked.connect(self._save_settings)
         s_layout.addRow("", btn_save)
+        
+        # Theme selector
+        self.theme_combo = QtWidgets.QComboBox()
+        self.theme_combo.addItems(["Système", "Clair", "Sombre"])  # system, light, dark
+        s_layout.addRow("Thème", self.theme_combo)
+
 
         # Spotify controls
         sp_controls = QtWidgets.QHBoxLayout()
@@ -148,7 +163,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.sound_dir = self.sound_dir_edit.text().strip() or self.settings.sound_dir
         self.settings.output_volume = self.volume_slider.value()
         self.settings.spotify_control_mode = "linux_mpris"
+        idx = self.theme_combo.currentIndex()
+        self.settings.theme = {0: "system", 1: "light", 2: "dark"}.get(idx, "system")
         self.storage.save_settings(self.settings)
+        self._apply_theme(self.settings.theme)
         self.player.set_volume(self.settings.output_volume)
         self.spotify = SpotifyController(mode=self.settings.spotify_control_mode)
         QtWidgets.QMessageBox.information(self, "Réglages", "Enregistrés.")
@@ -157,6 +175,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sound_dir_edit.setText(self.settings.sound_dir)
         self.volume_slider.setValue(self.settings.output_volume)
         self.player.set_volume(self.settings.output_volume)
+        theme_to_idx = {"system": 0, "light": 1, "dark": 2}
+        self.theme_combo.setCurrentIndex(theme_to_idx.get(getattr(self.settings, "theme", "system"), 0))
+
 
     # --- Task CRUD + Scheduling
     def _add_task(self):
@@ -336,6 +357,36 @@ class MainWindow(QtWidgets.QMainWindow):
         tasks = [t for t in self.storage.list_tasks() if t.task_type == TaskType.AFTER_DURATION]
         for t in tasks:
             self.scheduler.remove(t.id)
+    
+    def _apply_theme(self, theme: str):
+        qdt = _safe_import_qdarktheme()
+        # reset style
+        QtWidgets.QApplication.setStyle("Fusion")
+        app = QtWidgets.QApplication.instance()
+        if qdt:
+            mode = {"system": "auto", "light": "light", "dark": "dark"}.get(theme, "auto")
+            qdt.setup_theme(mode)
+            return
+        # Fallback sans qdarktheme: palettes simples
+        from PySide6.QtGui import QPalette, QColor
+        pal = QPalette()
+        if theme == "dark":
+            pal.setColor(QPalette.Window, QColor(53, 53, 53))
+            pal.setColor(QPalette.WindowText, QColor(220, 220, 220))
+            pal.setColor(QPalette.Base, QColor(35, 35, 35))
+            pal.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+            pal.setColor(QPalette.ToolTipBase, QColor(220, 220, 220))
+            pal.setColor(QPalette.ToolTipText, QColor(220, 220, 220))
+            pal.setColor(QPalette.Text, QColor(220, 220, 220))
+            pal.setColor(QPalette.Button, QColor(53, 53, 53))
+            pal.setColor(QPalette.ButtonText, QColor(220, 220, 220))
+            pal.setColor(QPalette.Highlight, QColor(42, 130, 218))
+            pal.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
+        else:
+            pal = app.style().standardPalette() if app else pal
+        if app:
+            app.setPalette(pal)
+
 
 
 def main():

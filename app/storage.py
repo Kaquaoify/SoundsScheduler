@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     sound_dir TEXT NOT NULL,
     output_volume INTEGER NOT NULL,
-    spotify_control_mode TEXT NOT NULL
+    spotify_control_mode TEXT NOT NULL,
+    theme TEXT NOT NULL DEFAULT 'system'
 );
 CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +62,12 @@ class Storage:
                 self.conn.execute("ALTER TABLE tasks ADD COLUMN after_task_id INTEGER")
             if "run_count" not in cols:
                 self.conn.execute("ALTER TABLE tasks ADD COLUMN run_count INTEGER DEFAULT 0")
+                
+            # settings: ajouter colonne theme si absente
+            s_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(settings)")}
+            if "theme" not in s_cols:
+                self.conn.execute("ALTER TABLE settings ADD COLUMN theme TEXT NOT NULL DEFAULT 'system'")
+
 
             # Migration de compat: anciens types -> nouveaux (user_version < 2)
             (uv,) = self.conn.execute("PRAGMA user_version").fetchone()
@@ -85,9 +92,10 @@ class Storage:
             cur = self.conn.execute("SELECT 1 FROM settings WHERE id=1")
             if not cur.fetchone():
                 self.conn.execute(
-                    "INSERT INTO settings (id, sound_dir, output_volume, spotify_control_mode) VALUES (1, ?, ?, ?)",
-                    (str(Path.home() / "Music"), 80, "linux_mpris"),
+                    "INSERT INTO settings (id, sound_dir, output_volume, spotify_control_mode, theme) VALUES (1, ?, ?, ?, ?)",
+                    (str(Path.home() / "Music"), 80, "linux_mpris", "system"),
                 )
+
 
     # -- settings
     def load_settings(self) -> Settings:
@@ -96,14 +104,16 @@ class Storage:
             sound_dir=row["sound_dir"],
             output_volume=row["output_volume"],
             spotify_control_mode=row["spotify_control_mode"],
+            theme=row["theme"] if "theme" in row.keys() and row["theme"] else "system",
         )
 
     def save_settings(self, s: Settings):
         with self.conn:
             self.conn.execute(
-                "UPDATE settings SET sound_dir=?, output_volume=?, spotify_control_mode=? WHERE id=1",
-                (s.sound_dir, s.output_volume, s.spotify_control_mode),
+                "UPDATE settings SET sound_dir=?, output_volume=?, spotify_control_mode=?, theme=? WHERE id=1",
+                (s.sound_dir, s.output_volume, s.spotify_control_mode, getattr(s, "theme", "system")),
             )
+
 
     # -- tasks
     def list_tasks(self) -> List[Task]:

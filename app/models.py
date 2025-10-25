@@ -16,6 +16,7 @@ class Settings:
     sound_dir: str
     output_volume: int                  # 0..100
     spotify_control_mode: str           # toujours "linux_mpris"
+    theme: str = "system"               # "system" | "light" | "dark"
 
 @dataclass
 class Task:
