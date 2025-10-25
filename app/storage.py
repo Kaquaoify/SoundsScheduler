@@ -1,7 +1,10 @@
+# ==============================
+# app/storage.py
+# ==============================
 from __future__ import annotations
 import sqlite3
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 from .config import DB_PATH
 from .models import Settings, Task, TaskType
 
@@ -33,8 +36,8 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 class Storage:
     def __init__(self, path: Path = DB_PATH):
-        # autoriser l’accès depuis le thread APScheduler
         self.path = path
+        # Autoriser l'accès depuis le thread APScheduler
         self.conn = sqlite3.connect(self.path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._init_db()
@@ -70,7 +73,7 @@ class Storage:
         return Settings(
             sound_dir=row["sound_dir"],
             output_volume=row["output_volume"],
-            spotify_control_mode=row["spotify_control_mode"]
+            spotify_control_mode=row["spotify_control_mode"],
         )
 
     def save_settings(self, s: Settings):
@@ -92,7 +95,7 @@ class Storage:
                 max_occurrences=r["max_occurrences"],
                 start_now=bool(r["start_now"]) if r["start_now"] is not None else True,
                 start_at_hour=r["start_at_hour"], start_at_minute=r["start_at_minute"],
-                after_task_id=r["after_task_id"], run_count=r["run_count"] or 0
+                after_task_id=r["after_task_id"], run_count=r["run_count"] or 0,
             ))
         return out
 
@@ -105,11 +108,8 @@ class Storage:
                  max_occurrences, start_now, start_at_hour, start_at_minute, after_task_id, run_count)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (t.name, t.sound_path, t.task_type.value, t.param_value,
-                 t.at_hour, t.at_minute, int(t.enabled),
-                 t.max_occurrences, int(t.start_now),
-                 t.start_at_hour, t.start_at_minute,
-                 t.after_task_id, t.run_count),
+                (t.name, t.sound_path, t.task_type.value, t.param_value, t.at_hour, t.at_minute, int(t.enabled),
+                 t.max_occurrences, int(t.start_now), t.start_at_hour, t.start_at_minute, t.after_task_id, t.run_count),
             )
             return cur.lastrowid
 
@@ -131,7 +131,7 @@ class Storage:
         with self.conn:
             self.conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
 
-    # Helpers pour comptage d’occurrences
+    # Helpers occurrences
     def increment_run_count(self, task_id: int) -> int:
         with self.conn:
             self.conn.execute("UPDATE tasks SET run_count = COALESCE(run_count,0) + 1 WHERE id=?", (task_id,))
@@ -141,3 +141,35 @@ class Storage:
     def set_enabled(self, task_id: int, enabled: bool):
         with self.conn:
             self.conn.execute("UPDATE tasks SET enabled=? WHERE id=?", (1 if enabled else 0, task_id))
+
+# ==============================.execute("UPDATE tasks SET run_count = COALESCE(run_count,0) + 1 WHERE id=?", (task_id,))
+            (val,) = self.conn.execute("SELECT run_count FROM tasks WHERE id=?", (task_id,)).fetchone()
+            return val
+
+    def set_enabled(self, task_id: int, enabled: bool):
+        with self.conn:
+            self.conn.execute("UPDATE tasks SET enabled=? WHERE id=?", (1 if enabled else 0, task_id))
+
+# ==============================.execute("UPDATE tasks SET run_count = COALESCE(run_count,0) + 1 WHERE id=?", (task_id,))
+            (val,) = self.conn.execute("SELECT run_count FROM tasks WHERE id=?", (task_id,)).fetchone()
+            return val
+
+    def set_enabled(self, task_id: int, enabled: bool):
+        with self.conn:
+            self.conn.execute("UPDATE tasks SET enabled=? WHERE id=?", (1 if enabled else 0, task_id))
+
+# ==============================.execute("UPDATE tasks SET run_count = COALESCE(run_count,0) + 1 WHERE id=?", (task_id,))
+            (val,) = self.conn.execute("SELECT run_count FROM tasks WHERE id=?", (task_id,)).fetchone()
+            return val
+
+    def set_enabled(self, task_id: int, enabled: bool):
+        with self.conn:
+            self.conn.execute("UPDATE tasks SET enabled=? WHERE id=?", (1 if enabled else 0, task_id))
+
+# ==============================            "UPDATE tasks SET name=?, sound_path=?, task_type=?, param_value=?, at_hour=?, at_minute=?, enabled=? WHERE id=?",
+                (t.name, t.sound_path, t.task_type.value, t.param_value, t.at_hour, t.at_minute, int(t.enabled), t.id),
+            )
+
+    def delete_task(self, task_id: int):
+        with self.conn:
+            self.conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))

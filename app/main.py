@@ -1,3 +1,6 @@
+# ==============================
+# app/main.py
+# ==============================
 from __future__ import annotations
 import sys
 import threading
@@ -5,7 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from PySide6 import QtWidgets, QtCore
 from .storage import Storage
-from .models import TaskType, Task, Settings
+from .models import TaskType, Task
 from .scheduler import TaskScheduler
 from .spotify_control import SpotifyController
 from .audio_player import AudioPlayer
@@ -33,7 +36,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tabs = QtWidgets.QTabWidget()
         self.setCentralWidget(tabs)
 
-        # Settings
+        # Settings tab
         settings_tab = QtWidgets.QWidget(); tabs.addTab(settings_tab, "Réglages")
         s_layout = QtWidgets.QFormLayout(settings_tab)
         self.sound_dir_edit = QtWidgets.QLineEdit()
@@ -57,7 +60,7 @@ class MainWindow(QtWidgets.QMainWindow):
         sp_controls.addWidget(btn_sp_play); sp_controls.addWidget(btn_sp_pause)
         s_layout.addRow("Spotify", self._wrap(sp_controls))
 
-        # Manual sound
+        # Manual play sound
         manual_layout = QtWidgets.QHBoxLayout()
         self.manual_sound_combo = QtWidgets.QComboBox(); self._refresh_manual_sounds()
         btn_manual_play = QtWidgets.QPushButton("Lancer le son maintenant")
@@ -65,11 +68,11 @@ class MainWindow(QtWidgets.QMainWindow):
         manual_layout.addWidget(self.manual_sound_combo); manual_layout.addWidget(btn_manual_play)
         s_layout.addRow("Test / Manuel", self._wrap(manual_layout))
 
-        # Tasks
+        # Tasks tab
         tasks_tab = QtWidgets.QWidget(); tabs.addTab(tasks_tab, "Tâches")
         v = QtWidgets.QVBoxLayout(tasks_tab)
         self.table = QtWidgets.QTableWidget(0, 10)
-        self.table.setHorizontalHeaderLabels(["ID","Nom","Son","Type","Param","Heure","Actif","MaxOcc","Start","Après#"])
+        self.table.setHorizontalHeaderLabels(["ID","Nom","Son","Type","Durée","Heure","Actif","MaxOcc","Start","Après#"])
         self.table.horizontalHeader().setStretchLastSection(True)
         v.addWidget(self.table)
 
@@ -115,7 +118,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if dlg.exec() == QtWidgets.QDialog.Accepted:
             t = dlg.get_task()
             t.name = t.name or Path(t.sound_path).stem
-            new_id = self.storage.add_task(t)
+            self.storage.add_task(t)
             self._reload_tasks()
 
     def _edit_selected(self):
@@ -150,27 +153,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scheduler.clear()
         # index for dependencies
         self._tasks_by_id = {t.id: t for t in tasks}
-        self._dependents = {}  # src_id -> list[Task]
+        self._dependents = {}
         for t in tasks:
             if t.enabled and t.task_type == TaskType.AFTER_TASK and t.after_task_id:
                 self._dependents.setdefault(t.after_task_id, []).append(t)
         # schedule non-dependent tasks
         for t in tasks:
-            if not t.enabled: 
+            if not t.enabled:
                 continue
             if t.task_type == TaskType.AFTER_TASK:
-                continue  # only fired when source task runs
+                continue  # sera déclenchée par sa source
             self._schedule_task(t)
 
     def _append_task_row(self, t: Task):
         row = self.table.rowCount(); self.table.insertRow(row)
-        def setc(col, text):
-            self.table.setItem(row, col, QtWidgets.QTableWidgetItem(text))
+        def setc(c, text):
+            item = QtWidgets.QTableWidgetItem(text); self.table.setItem(row, c, item)
         setc(0, str(t.id))
         setc(1, t.name)
         setc(2, t.sound_path)
         setc(3, t.task_type.value)
-        setc(4, str(t.param_value))
+        # format HH:MM:SS
+        dur = int(t.param_value or 0)
+        hh, rem = divmod(dur, 3600); mm, ss = divmod(rem, 60)
+        setc(4, f"{hh:02d}:{mm:02d}:{ss:02d}" if dur else "-")
         setc(5, f"{t.at_hour:02d}:{t.at_minute:02d}" if t.at_hour is not None else "-")
         setc(6, "✔" if t.enabled else "✖")
         setc(7, str(t.max_occurrences or 0))
@@ -178,7 +184,7 @@ class MainWindow(QtWidgets.QMainWindow):
         setc(8, start_txt)
         setc(9, f"#{t.after_task_id}" if t.after_task_id else "-")
 
-    # --- core runners
+    # --- job builder & scheduling
     def _make_job(self, t: Task):
         def job():
             was_playing = self.spotify.is_playing()
@@ -191,8 +197,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 if was_playing:
                     self.spotify.play()
 
-            # comptage d'occurrences + désactivation si atteint
-            if t.max_occurrences and t.max_occurrences > 0:
+            # occurrences
+            if t.max_occurrences and t.max_occurrences > 0 and t.task_type == TaskType.AFTER_DURATION:
                 new_count = self.storage.increment_run_count(t.id)
                 if new_count >= t.max_occurrences:
                     self.storage.set_enabled(t.id, False)
@@ -200,34 +206,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # déclenche les dépendants
             for dep in self._dependents.get(t.id, []) if hasattr(self, "_dependents") else []:
-                run_date = datetime.now() + timedelta(minutes=max(0, dep.param_value))
+                run_date = datetime.now() + timedelta(seconds=max(0, int(dep.param_value)))
                 self.scheduler.schedule_once_at(dep.id, run_date, self._make_job(dep))
         return job
 
     def _schedule_task(self, t: Task):
         job = self._make_job(t)
-        # fixed time
         if t.task_type == TaskType.FIXED_TIME:
             self.scheduler.schedule_daily_fixed(t.id, t.at_hour or 0, t.at_minute or 0, job)
             return
-        # intervals
-        next_run = None
-        if not t.start_now and t.start_at_hour is not None and t.start_at_minute is not None:
-            candidate = datetime.now().replace(hour=t.start_at_hour, minute=t.start_at_minute, second=0, microsecond=0)
-            if candidate < datetime.now():
-                # si l'heure est passée aujourd'hui, on démarre à la prochaine occurrence
-                if t.task_type == TaskType.EVERY_X_MINUTES:
-                    candidate = candidate + timedelta(minutes=t.param_value * ((datetime.now()-candidate).seconds // (t.param_value*60) + 1))
-                else:
-                    candidate = candidate + timedelta(hours=t.param_value * ((datetime.now()-candidate).seconds // (t.param_value*3600) + 1))
-            next_run = candidate
+        if t.task_type == TaskType.AFTER_DURATION:
+            next_run = None
+            if not t.start_now and t.start_at_hour is not None and t.start_at_minute is not None:
+                candidate = datetime.now().replace(hour=t.start_at_hour, minute=t.start_at_minute, second=0, microsecond=0)
+                # si l'heure est dans le passé, on avance par pas de la durée jusqu'au futur
+                if candidate < datetime.now():
+                    step = max(1, int(t.param_value))
+                    delta = int((datetime.now() - candidate).total_seconds())
+                    steps = (delta // step) + 1
+                    candidate = candidate + timedelta(seconds=steps * step)
+                next_run = candidate
+            self.scheduler.schedule_every_seconds(t.id, max(1, int(t.param_value)), job, next_run_time=next_run)
 
-        if t.task_type == TaskType.EVERY_X_MINUTES:
-            self.scheduler.schedule_every_minutes(t.id, t.param_value, job, next_run_time=next_run)
-        elif t.task_type == TaskType.EVERY_X_HOURS:
-            self.scheduler.schedule_every_hours(t.id, t.param_value, job, next_run_time=next_run)
-
-    # manual
     def _play_manual_sound(self):
         path = self.manual_sound_combo.currentText()
         if not path:
@@ -236,12 +236,15 @@ class MainWindow(QtWidgets.QMainWindow):
         def run():
             was_playing = self.spotify.is_playing()
             try:
-                if was_playing: self.spotify.pause()
+                if was_playing:
+                    self.spotify.pause()
                 self.player.set_volume(self.settings.output_volume)
                 self.player.play_blocking(path)
             finally:
-                if was_playing: self.spotify.play()
+                if was_playing:
+                    self.spotify.play()
         threading.Thread(target=run, daemon=True).start()
+
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

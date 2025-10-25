@@ -1,3 +1,6 @@
+# ==============================
+# app/scheduler.py
+# ==============================
 from __future__ import annotations
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -20,14 +23,9 @@ class TaskScheduler:
         trig = CronTrigger(hour=hour, minute=minute)
         self._job_ids[task_id] = self.sched.add_job(func, trig, id=jid, replace_existing=True)
 
-    def schedule_every_minutes(self, task_id: int, minutes: int, func: Callable, next_run_time: datetime | None = None):
+    def schedule_every_seconds(self, task_id: int, seconds: int, func: Callable, next_run_time: datetime | None = None):
         jid = f"task_{task_id}"
-        trig = IntervalTrigger(minutes=minutes)
-        self._job_ids[task_id] = self.sched.add_job(func, trig, id=jid, replace_existing=True, next_run_time=next_run_time)
-
-    def schedule_every_hours(self, task_id: int, hours: int, func: Callable, next_run_time: datetime | None = None):
-        jid = f"task_{task_id}"
-        trig = IntervalTrigger(hours=hours)
+        trig = IntervalTrigger(seconds=seconds)
         self._job_ids[task_id] = self.sched.add_job(func, trig, id=jid, replace_existing=True, next_run_time=next_run_time)
 
     def schedule_once_at(self, task_id: int, run_date: datetime, func: Callable):

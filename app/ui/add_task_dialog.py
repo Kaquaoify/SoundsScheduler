@@ -1,3 +1,6 @@
+# ==============================
+# app/ui/add_task_dialog.py
+# ==============================
 from __future__ import annotations
 from PySide6 import QtWidgets, QtCore
 from pathlib import Path
@@ -7,25 +10,29 @@ class AddTaskDialog(QtWidgets.QDialog):
     def __init__(self, parent=None, task: Task | None = None, sound_dir: str | None = None, existing_tasks: list[Task] | None = None):
         super().__init__(parent)
         self.setWindowTitle("Nouvelle tâche" if task is None else "Modifier la tâche")
-        self.resize(520, 360)
+        self.resize(560, 380)
 
         self.name_edit = QtWidgets.QLineEdit()
         self.sound_combo = QtWidgets.QComboBox()
         self.type_combo = QtWidgets.QComboBox()
-        self.type_combo.addItems(["à heure fixe", "toutes les X minutes", "toutes les X heures", "X minutes après une tâche"])
+        self.type_combo.addItems(["à heure fixe", "après X temps (répété)", "après X temps une tâche"])  # FIXED_TIME, AFTER_DURATION, AFTER_TASK
 
-        self.value_spin = QtWidgets.QSpinBox(); self.value_spin.setRange(1, 10080)
+        # Durée h/m/s
+        self.dur_h = QtWidgets.QSpinBox(); self.dur_h.setRange(0, 9999)
+        self.dur_m = QtWidgets.QSpinBox(); self.dur_m.setRange(0, 59)
+        self.dur_s = QtWidgets.QSpinBox(); self.dur_s.setRange(0, 59)
+
         self.hour_spin = QtWidgets.QSpinBox(); self.hour_spin.setRange(0, 23)
-        self.min_spin = QtWidgets.QSpinBox(); self.min_spin.setRange(0, 59)
+        self.min_spin  = QtWidgets.QSpinBox(); self.min_spin.setRange(0, 59)
         self.enabled_check = QtWidgets.QCheckBox("Activée"); self.enabled_check.setChecked(True)
 
-        # Interval options
+        # Options intervalle
         self.max_occ_spin = QtWidgets.QSpinBox(); self.max_occ_spin.setRange(0, 100000); self.max_occ_spin.setValue(0)
         self.start_now_check = QtWidgets.QCheckBox("Démarrer maintenant"); self.start_now_check.setChecked(True)
         self.start_at_hour = QtWidgets.QSpinBox(); self.start_at_hour.setRange(0,23)
-        self.start_at_min = QtWidgets.QSpinBox(); self.start_at_min.setRange(0,59)
+        self.start_at_min  = QtWidgets.QSpinBox(); self.start_at_min.setRange(0,59)
 
-        # Dependency
+        # Dépendance
         self.after_task_combo = QtWidgets.QComboBox(); self.after_task_combo.setEnabled(False)
         if existing_tasks:
             for t in existing_tasks:
@@ -39,7 +46,12 @@ class AddTaskDialog(QtWidgets.QDialog):
         form.addRow("Nom", self.name_edit)
         form.addRow("Son", self.sound_combo)
         form.addRow("Type", self.type_combo)
-        form.addRow("Valeur (min/heure)", self.value_spin)
+
+        dur_row = QtWidgets.QHBoxLayout()
+        dur_row.addWidget(self.dur_h); dur_row.addWidget(QtWidgets.QLabel("h"))
+        dur_row.addWidget(self.dur_m); dur_row.addWidget(QtWidgets.QLabel("m"))
+        dur_row.addWidget(self.dur_s); dur_row.addWidget(QtWidgets.QLabel("s"))
+        form.addRow("Durée", self._wrap(dur_row))
 
         fixed_time_layout = QtWidgets.QHBoxLayout()
         fixed_time_layout.addWidget(self.hour_spin); fixed_time_layout.addWidget(QtWidgets.QLabel("h")); fixed_time_layout.addWidget(self.min_spin)
@@ -49,7 +61,7 @@ class AddTaskDialog(QtWidgets.QDialog):
         start_row.addWidget(self.start_now_check)
         start_row.addWidget(QtWidgets.QLabel("Sinon à:"))
         start_row.addWidget(self.start_at_hour); start_row.addWidget(QtWidgets.QLabel("h")); start_row.addWidget(self.start_at_min)
-        form.addRow("Départ intervalle", self._wrap(start_row))
+        form.addRow("Départ (répété)", self._wrap(start_row))
 
         form.addRow("Occurrences max (0 = illimité)", self.max_occ_spin)
         form.addRow("Après la tâche", self.after_task_combo)
@@ -82,17 +94,20 @@ class AddTaskDialog(QtWidgets.QDialog):
     def _on_type_change(self, *_):
         idx = self.type_combo.currentIndex()
         is_fixed = idx == 0
-        is_interval = idx in (1, 2)
-        is_after = idx == 3
+        is_duration = idx == 1
+        is_after = idx == 2
 
+        # champs actifs selon type
         self.hour_spin.setEnabled(is_fixed)
         self.min_spin.setEnabled(is_fixed)
 
-        self.value_spin.setEnabled(not is_fixed)
-        self.max_occ_spin.setEnabled(is_interval)
-        self.start_now_check.setEnabled(is_interval)
-        self.start_at_hour.setEnabled(is_interval and not self.start_now_check.isChecked())
-        self.start_at_min.setEnabled(is_interval and not self.start_now_check.isChecked())
+        for w in (self.dur_h, self.dur_m, self.dur_s):
+            w.setEnabled(is_duration or is_after)
+
+        self.max_occ_spin.setEnabled(is_duration)
+        self.start_now_check.setEnabled(is_duration)
+        self.start_at_hour.setEnabled(is_duration and not self.start_now_check.isChecked())
+        self.start_at_min.setEnabled(is_duration and not self.start_now_check.isChecked())
         self.after_task_combo.setEnabled(is_after)
 
     def _load_task(self, t: Task):
@@ -106,19 +121,20 @@ class AddTaskDialog(QtWidgets.QDialog):
             self.type_combo.setCurrentIndex(0)
             self.hour_spin.setValue(t.at_hour or 0)
             self.min_spin.setValue(t.at_minute or 0)
-        elif t.task_type == TaskType.EVERY_X_MINUTES:
+        elif t.task_type == TaskType.AFTER_DURATION:
             self.type_combo.setCurrentIndex(1)
-            self.value_spin.setValue(t.param_value)
-        elif t.task_type == TaskType.EVERY_X_HOURS:
-            self.type_combo.setCurrentIndex(2)
-            self.value_spin.setValue(t.param_value)
         else:
-            self.type_combo.setCurrentIndex(3)
-            self.value_spin.setValue(t.param_value)
+            self.type_combo.setCurrentIndex(2)
             if t.after_task_id is not None:
                 i = self.after_task_combo.findData(t.after_task_id)
                 if i >= 0:
                     self.after_task_combo.setCurrentIndex(i)
+
+        # décomposer secondes -> h/m/s
+        secs = int(t.param_value or 0)
+        self.dur_h.setValue(secs // 3600)
+        self.dur_m.setValue((secs % 3600) // 60)
+        self.dur_s.setValue(secs % 60)
 
         self.max_occ_spin.setValue(t.max_occurrences or 0)
         self.start_now_check.setChecked(bool(t.start_now))
@@ -126,25 +142,29 @@ class AddTaskDialog(QtWidgets.QDialog):
         if t.start_at_minute is not None: self.start_at_min.setValue(t.start_at_minute)
         self._on_type_change()
 
+    def _duration_seconds(self) -> int:
+        return self.dur_h.value()*3600 + self.dur_m.value()*60 + self.dur_s.value()
+
     def get_task(self) -> Task:
         idx = self.type_combo.currentIndex()
         if idx == 0:
             ttype = TaskType.FIXED_TIME
         elif idx == 1:
-            ttype = TaskType.EVERY_X_MINUTES
-        elif idx == 2:
-            ttype = TaskType.EVERY_X_HOURS
+            ttype = TaskType.AFTER_DURATION
         else:
             ttype = TaskType.AFTER_TASK
 
         after_id = self.after_task_combo.currentData() if ttype == TaskType.AFTER_TASK else None
+        duration_sec = self._duration_seconds()
+        if duration_sec <= 0 and ttype != TaskType.FIXED_TIME:
+            duration_sec = 1  # garde‑fou
 
         return Task(
             id=None,
             name=self.name_edit.text().strip() or "Tâche",
             sound_path=self.sound_combo.currentText(),
             task_type=ttype,
-            param_value=self.value_spin.value(),
+            param_value=duration_sec,
             at_hour=self.hour_spin.value(),
             at_minute=self.min_spin.value(),
             enabled=self.enabled_check.isChecked(),
@@ -153,4 +173,34 @@ class AddTaskDialog(QtWidgets.QDialog):
             start_at_hour=self.start_at_hour.value() if not self.start_now_check.isChecked() else None,
             start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
             after_task_id=after_id,
+        )
+
+# ==============================in.value() or None),
+            start_now=self.start_now_check.isChecked(),
+            start_at_hour=self.start_at_hour.value() if not self.start_now_check.isChecked() else None,
+            start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
+            after_task_id=after_id,
+        )
+
+# ==============================in.value() or None),
+            start_now=self.start_now_check.isChecked(),
+            start_at_hour=self.start_at_hour.value() if not self.start_now_check.isChecked() else None,
+            start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
+            after_task_id=after_id,
+        )
+
+# ==============================in.value() or None),
+            start_now=self.start_now_check.isChecked(),
+            start_at_hour=self.start_at_hour.value() if not self.start_now_check.isChecked() else None,
+            start_at_minute=self.start_at_min.value() if not self.start_now_check.isChecked() else None,
+            after_task_id=after_id,
+        )
+
+# ============================== name=self.name_edit.text().strip() or "Tâche",
+            sound_path=self.sound_combo.currentText(),
+            task_type=ttype,
+            param_value=self.value_spin.value(),
+            at_hour=self.hour_spin.value(),
+            at_minute=self.min_spin.value(),
+            enabled=self.enabled_check.isChecked(),
         )
