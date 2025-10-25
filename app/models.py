@@ -24,7 +24,7 @@ class Task:
     name: str
     sound_path: str
     task_type: TaskType
-    # "param_value" stocke désormais une DURÉE EN SECONDES (pour AFTER_DURATION et AFTER_TASK)
+    # "param_value" stocke une DURÉE EN SECONDES (pour AFTER_DURATION et AFTER_TASK)
     param_value: int                    # secondes
     at_hour: Optional[int] = None       # pour FIXED_TIME
     at_minute: Optional[int] = None
