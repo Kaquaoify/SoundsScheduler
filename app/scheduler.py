@@ -10,7 +10,7 @@ from typing import Callable
 
 class TaskScheduler:
     def __init__(self):
-        self.sched = BackgroundScheduler()
+        self.sched = BackgroundScheduler(job_defaults={"misfire_grace_time": 60})
         self.sched.start()
         self._job_ids = {}
 

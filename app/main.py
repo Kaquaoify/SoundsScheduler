@@ -3,10 +3,12 @@
 # ==============================
 from __future__ import annotations
 import sys
+import logging
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from PySide6 import QtWidgets, QtCore
+from .config import LOG_PATH
 from .storage import Storage
 from .models import TaskType, Task
 from .scheduler import TaskScheduler
@@ -14,6 +16,14 @@ from .spotify_control import SpotifyController
 from .audio_player import AudioPlayer
 from .ui.add_task_dialog import AddTaskDialog
 from .ui.icons import get_app_icon
+
+# simple file logger
+logging.basicConfig(
+    filename=str(LOG_PATH),
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+log = logging.getLogger("SoundsScheduler")
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -30,6 +40,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._init_ui()
         self._load_settings_to_ui()
+        log.info("App démarrée. Chargement des tâches…")
         self._reload_tasks()
 
     def _init_ui(self):
@@ -144,6 +155,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._reload_tasks()
 
     def _reload_tasks(self):
+        log.info("Rechargement des tâches…")
         tasks = self.storage.list_tasks()
         # rebuild UI
         self.table.setRowCount(0)
@@ -151,6 +163,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._append_task_row(t)
         # rebuild schedules
         self.scheduler.clear()
+        log.info("Jobs APScheduler purgés. Replanifie…")
         # index for dependencies
         self._tasks_by_id = {t.id: t for t in tasks}
         self._dependents = {}
@@ -164,6 +177,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if t.task_type == TaskType.AFTER_TASK:
                 continue  # sera déclenchée par sa source
             self._schedule_task(t)
+        log.info("Planification terminée (%d tâches actives)", sum(1 for t in tasks if t.enabled))
 
     def _append_task_row(self, t: Task):
         row = self.table.rowCount(); self.table.insertRow(row)
@@ -187,6 +201,7 @@ class MainWindow(QtWidgets.QMainWindow):
     # --- job builder & scheduling
     def _make_job(self, t: Task):
         def job():
+            log.info("Exécution tâche #%s (%s) — son=%s", t.id, t.task_type.value, t.sound_path)
             was_playing = self.spotify.is_playing()
             try:
                 if was_playing:
@@ -194,6 +209,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.player.set_volume(self.settings.output_volume)
                 self.player.play_blocking(t.sound_path)
             finally:
+                log.info("Fin tâche #%s", t.id)
                 if was_playing:
                     self.spotify.play()
 
@@ -207,25 +223,28 @@ class MainWindow(QtWidgets.QMainWindow):
             # déclenche les dépendants
             for dep in self._dependents.get(t.id, []) if hasattr(self, "_dependents") else []:
                 run_date = datetime.now() + timedelta(seconds=max(0, int(dep.param_value)))
+                log.info("  -> planifie dépendante #%s pour %s (+%ss)", dep.id, run_date, int(dep.param_value))
                 self.scheduler.schedule_once_at(dep.id, run_date, self._make_job(dep))
         return job
 
     def _schedule_task(self, t: Task):
         job = self._make_job(t)
         if t.task_type == TaskType.FIXED_TIME:
+            log.info("Planifie FIXED_TIME #%s à %02d:%02d", t.id, t.at_hour or 0, t.at_minute or 0)
             self.scheduler.schedule_daily_fixed(t.id, t.at_hour or 0, t.at_minute or 0, job)
             return
         if t.task_type == TaskType.AFTER_DURATION:
-            next_run = None
+            # Première occurrence immédiate si start_now=True
+            next_run = datetime.now() if (t.start_now or t.start_now is None) else None
             if not t.start_now and t.start_at_hour is not None and t.start_at_minute is not None:
                 candidate = datetime.now().replace(hour=t.start_at_hour, minute=t.start_at_minute, second=0, microsecond=0)
-                # si l'heure est dans le passé, on avance par pas de la durée jusqu'au futur
                 if candidate < datetime.now():
                     step = max(1, int(t.param_value))
                     delta = int((datetime.now() - candidate).total_seconds())
                     steps = (delta // step) + 1
                     candidate = candidate + timedelta(seconds=steps * step)
                 next_run = candidate
+            log.info("Planifie AFTER_DURATION #%s toutes %ss (prochaine: %s)", t.id, int(t.param_value), next_run)
             self.scheduler.schedule_every_seconds(t.id, max(1, int(t.param_value)), job, next_run_time=next_run)
 
     def _play_manual_sound(self):
