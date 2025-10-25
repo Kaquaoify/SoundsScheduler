@@ -44,6 +44,7 @@ class Storage:
 
     def _init_db(self):
         with self.conn:
+            self.conn.executescripts(SCHEMA)  # typo fixed? ensure execscripts -> executescript
             self.conn.executescript(SCHEMA)
             # migrations si ancienne base
             cols = {r[1] for r in self.conn.execute("PRAGMA table_info(tasks)")}
@@ -60,10 +61,23 @@ class Storage:
             if "run_count" not in cols:
                 self.conn.execute("ALTER TABLE tasks ADD COLUMN run_count INTEGER DEFAULT 0")
 
+            # --- Migration de compatibilité: anciens types -> nouveaux (user_version < 2)
+            (uv,) = self.conn.execute("PRAGMA user_version").fetchone()
+            if (uv or 0) < 2:
+                # 1) every_x_minutes => after_duration (minutes -> secondes)
+                self.conn.execute("UPDATE tasks SET param_value = param_value * 60, task_type = 'after_duration' WHERE task_type = 'every_x_minutes'")
+                # 2) every_x_hours   => after_duration (heures -> secondes)
+                self.conn.execute("UPDATE tasks SET param_value = param_value * 3600, task_type = 'after_duration' WHERE task_type = 'every_x_hours'")
+                # 3) after_task (legacy en minutes) => secondes
+                self.conn.execute("UPDATE tasks SET param_value = param_value * 60 WHERE task_type = 'after_task'")
+                self.conn.execute("PRAGMA user_version = 2")
+
             cur = self.conn.execute("SELECT 1 FROM settings WHERE id=1")
             if not cur.fetchone():
                 self.conn.execute(
                     "INSERT INTO settings (id, sound_dir, output_volume, spotify_control_mode) VALUES (1, ?, ?, ?)",
+                    (str(Path.home()/"Music"), 80, "linux_mpris"),
+                ) VALUES (1, ?, ?, ?)",
                     (str(Path.home()/"Music"), 80, "linux_mpris"),
                 )
 
@@ -88,9 +102,12 @@ class Storage:
         rows = self.conn.execute("SELECT * FROM tasks ORDER BY id DESC").fetchall()
         out: List[Task] = []
         for r in rows:
+            raw_type = r["task_type"]
+            if raw_type in ("every_x_minutes", "every_x_hours"):
+                raw_type = "after_duration"
             out.append(Task(
                 id=r["id"], name=r["name"], sound_path=r["sound_path"],
-                task_type=TaskType(r["task_type"]), param_value=r["param_value"],
+                task_type=TaskType(raw_type), param_value=r["param_value"],
                 at_hour=r["at_hour"], at_minute=r["at_minute"], enabled=bool(r["enabled"]),
                 max_occurrences=r["max_occurrences"],
                 start_now=bool(r["start_now"]) if r["start_now"] is not None else True,
